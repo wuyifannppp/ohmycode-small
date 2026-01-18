@@ -1,36 +1,23 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import {
-  createTodoContinuationEnforcer,
   createContextWindowMonitorHook,
   createSessionRecoveryHook,
   createSessionNotification,
   createCommentCheckerHooks,
   createToolOutputTruncatorHook,
-  createDirectoryAgentsInjectorHook,
-  createDirectoryReadmeInjectorHook,
   createEmptyTaskResponseDetectorHook,
   createThinkModeHook,
   createClaudeCodeHooksHook,
   createAnthropicContextWindowLimitRecoveryHook,
 
   createCompactionContextInjector,
-  createRulesInjectorHook,
   createBackgroundNotificationHook,
-  createAutoUpdateCheckerHook,
-  createKeywordDetectorHook,
-  createAgentUsageReminderHook,
   createNonInteractiveEnvHook,
   createInteractiveBashSessionHook,
 
   createThinkingBlockValidatorHook,
-  createRalphLoopHook,
   createAutoSlashCommandHook,
-  createEditErrorRecoveryHook,
-  createDelegateTaskRetryHook,
   createTaskResumeInfoHook,
-  createStartWorkHook,
-  createSisyphusOrchestratorHook,
-  createPrometheusMdOnlyHook,
 } from "./hooks";
 import {
   contextCollector,
@@ -122,12 +109,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         experimental: pluginConfig.experimental,
       })
     : null;
-  const directoryAgentsInjector = isHookEnabled("directory-agents-injector")
-    ? createDirectoryAgentsInjectorHook(ctx)
-    : null;
-  const directoryReadmeInjector = isHookEnabled("directory-readme-injector")
-    ? createDirectoryReadmeInjectorHook(ctx)
-    : null;
   const emptyTaskResponseDetector = isHookEnabled("empty-task-response-detector")
     ? createEmptyTaskResponseDetectorHook(ctx)
     : null;
@@ -136,7 +117,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ctx,
     {
       disabledHooks: (pluginConfig.claude_code?.hooks ?? true) ? undefined : true,
-      keywordDetectorDisabled: !isHookEnabled("keyword-detector"),
     },
     contextCollector
   );
@@ -150,24 +130,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const compactionContextInjector = isHookEnabled("compaction-context-injector")
     ? createCompactionContextInjector()
     : undefined;
-  const rulesInjector = isHookEnabled("rules-injector")
-    ? createRulesInjectorHook(ctx)
-    : null;
-  const autoUpdateChecker = isHookEnabled("auto-update-checker")
-    ? createAutoUpdateCheckerHook(ctx, {
-        showStartupToast: isHookEnabled("startup-toast"),
-        isSisyphusEnabled: pluginConfig.sisyphus_agent?.disabled !== true,
-        autoUpdate: pluginConfig.auto_update ?? true,
-      })
-    : null;
-  const keywordDetector = isHookEnabled("keyword-detector")
-    ? createKeywordDetectorHook(ctx, contextCollector)
-    : null;
   const contextInjectorMessagesTransform =
     createContextInjectorMessagesTransformHook(contextCollector);
-  const agentUsageReminder = isHookEnabled("agent-usage-reminder")
-    ? createAgentUsageReminderHook(ctx)
-    : null;
   const nonInteractiveEnv = isHookEnabled("non-interactive-env")
     ? createNonInteractiveEnvHook(ctx)
     : null;
@@ -179,49 +143,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createThinkingBlockValidatorHook()
     : null;
 
-  const ralphLoop = isHookEnabled("ralph-loop")
-    ? createRalphLoopHook(ctx, {
-        config: pluginConfig.ralph_loop,
-        checkSessionExists: async (sessionId) => sessionExists(sessionId),
-      })
-    : null;
-
-  const editErrorRecovery = isHookEnabled("edit-error-recovery")
-    ? createEditErrorRecoveryHook(ctx)
-    : null;
-
-  const delegateTaskRetry = isHookEnabled("delegate-task-retry")
-    ? createDelegateTaskRetryHook(ctx)
-    : null;
-
-  const startWork = isHookEnabled("start-work")
-    ? createStartWorkHook(ctx)
-    : null;
-
-  const sisyphusOrchestrator = isHookEnabled("sisyphus-orchestrator")
-    ? createSisyphusOrchestratorHook(ctx)
-    : null;
-
-  const prometheusMdOnly = isHookEnabled("prometheus-md-only")
-    ? createPrometheusMdOnlyHook(ctx)
-    : null;
-
   const taskResumeInfo = createTaskResumeInfoHook();
 
   const backgroundManager = new BackgroundManager(ctx);
 
   initTaskToastManager(ctx.client);
 
-  const todoContinuationEnforcer = isHookEnabled("todo-continuation-enforcer")
-    ? createTodoContinuationEnforcer(ctx, { backgroundManager })
-    : null;
 
-  if (sessionRecovery && todoContinuationEnforcer) {
-    sessionRecovery.setOnAbortCallback(todoContinuationEnforcer.markRecovering);
-    sessionRecovery.setOnRecoveryCompleteCallback(
-      todoContinuationEnforcer.markRecoveryComplete
-    );
-  }
 
   const backgroundNotificationHook = isHookEnabled("background-notification")
     ? createBackgroundNotificationHook(backgroundManager)
@@ -322,63 +250,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         applyAgentVariant(pluginConfig, input.agent, message)
       }
 
-      await keywordDetector?.["chat.message"]?.(input, output);
       await claudeCodeHooks["chat.message"]?.(input, output);
       await autoSlashCommand?.["chat.message"]?.(input, output);
-      await startWork?.["chat.message"]?.(input, output);
-
-      if (ralphLoop) {
-        const parts = (
-          output as { parts?: Array<{ type: string; text?: string }> }
-        ).parts;
-        const promptText =
-          parts
-            ?.filter((p) => p.type === "text" && p.text)
-            .map((p) => p.text)
-            .join("\n")
-            .trim() || "";
-
-        const isRalphLoopTemplate =
-          promptText.includes("You are starting a Ralph Loop") &&
-          promptText.includes("<user-task>");
-        const isCancelRalphTemplate = promptText.includes(
-          "Cancel the currently active Ralph Loop"
-        );
-
-        if (isRalphLoopTemplate) {
-          const taskMatch = promptText.match(
-            /<user-task>\s*([\s\S]*?)\s*<\/user-task>/i
-          );
-          const rawTask = taskMatch?.[1]?.trim() || "";
-
-          const quotedMatch = rawTask.match(/^["'](.+?)["']/);
-          const prompt =
-            quotedMatch?.[1] ||
-            rawTask.split(/\s+--/)[0]?.trim() ||
-            "Complete the task as instructed";
-
-          const maxIterMatch = rawTask.match(/--max-iterations=(\d+)/i);
-          const promiseMatch = rawTask.match(
-            /--completion-promise=["']?([^"'\s]+)["']?/i
-          );
-
-          log("[ralph-loop] Starting loop from chat.message", {
-            sessionID: input.sessionID,
-            prompt,
-          });
-          ralphLoop.startLoop(input.sessionID, prompt, {
-            maxIterations: maxIterMatch
-              ? parseInt(maxIterMatch[1], 10)
-              : undefined,
-            completionPromise: promiseMatch?.[1],
-          });
-        } else if (isCancelRalphTemplate) {
-          log("[ralph-loop] Cancelling loop from chat.message", {
-            sessionID: input.sessionID,
-          });
-          ralphLoop.cancelLoop(input.sessionID);
-        }
-      }
     },
 
     "experimental.chat.messages.transform": async (
@@ -397,21 +270,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     config: configHandler,
 
     event: async (input) => {
-      await autoUpdateChecker?.event(input);
       await claudeCodeHooks.event(input);
       await backgroundNotificationHook?.event(input);
       await sessionNotification?.(input);
-      await todoContinuationEnforcer?.handler(input);
       await contextWindowMonitor?.event(input);
-      await directoryAgentsInjector?.event(input);
-      await directoryReadmeInjector?.event(input);
-      await rulesInjector?.event(input);
       await thinkMode?.event(input);
       await anthropicContextWindowLimitRecovery?.event(input);
-      await agentUsageReminder?.event(input);
       await interactiveBashSession?.event(input);
-      await ralphLoop?.event(input);
-      await sisyphusOrchestrator?.handler(input);
 
       const { event } = input;
       const props = event.properties as Record<string, unknown> | undefined;
@@ -481,10 +346,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await claudeCodeHooks["tool.execute.before"](input, output);
       await nonInteractiveEnv?.["tool.execute.before"](input, output);
       await commentChecker?.["tool.execute.before"](input, output);
-      await directoryAgentsInjector?.["tool.execute.before"]?.(input, output);
-      await directoryReadmeInjector?.["tool.execute.before"]?.(input, output);
-      await rulesInjector?.["tool.execute.before"]?.(input, output);
-      await prometheusMdOnly?.["tool.execute.before"]?.(input, output);
 
       if (input.tool === "task") {
         const args = output.args as Record<string, unknown>;
@@ -499,57 +360,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           ...(isExploreOrLibrarian ? { call_omo_agent: false } : {}),
         };
       }
-
-      if (ralphLoop && input.tool === "slashcommand") {
-        const args = output.args as { command?: string } | undefined;
-        const command = args?.command?.replace(/^\//, "").toLowerCase();
-        const sessionID = input.sessionID || getMainSessionID();
-
-        if (command === "ralph-loop" && sessionID) {
-          const rawArgs =
-            args?.command?.replace(/^\/?(ralph-loop)\s*/i, "") || "";
-          const taskMatch = rawArgs.match(/^["'](.+?)["']/);
-          const prompt =
-            taskMatch?.[1] ||
-            rawArgs.split(/\s+--/)[0]?.trim() ||
-            "Complete the task as instructed";
-
-          const maxIterMatch = rawArgs.match(/--max-iterations=(\d+)/i);
-          const promiseMatch = rawArgs.match(
-            /--completion-promise=["']?([^"'\s]+)["']?/i
-          );
-
-          ralphLoop.startLoop(sessionID, prompt, {
-            maxIterations: maxIterMatch
-              ? parseInt(maxIterMatch[1], 10)
-              : undefined,
-            completionPromise: promiseMatch?.[1],
-          });
-         } else if (command === "cancel-ralph" && sessionID) {
-           ralphLoop.cancelLoop(sessionID);
-         } else if (command === "ulw-loop" && sessionID) {
-           const rawArgs =
-             args?.command?.replace(/^\/?(ulw-loop)\s*/i, "") || "";
-           const taskMatch = rawArgs.match(/^["'](.+?)["']/);
-           const prompt =
-             taskMatch?.[1] ||
-             rawArgs.split(/\s+--/)[0]?.trim() ||
-             "Complete the task as instructed";
-
-           const maxIterMatch = rawArgs.match(/--max-iterations=(\d+)/i);
-           const promiseMatch = rawArgs.match(
-             /--completion-promise=["']?([^"'\s]+)["']?/i
-           );
-
-           ralphLoop.startLoop(sessionID, prompt, {
-             ultrawork: true,
-             maxIterations: maxIterMatch
-               ? parseInt(maxIterMatch[1], 10)
-               : undefined,
-             completionPromise: promiseMatch?.[1],
-           });
-         }
-      }
     },
 
     "tool.execute.after": async (input, output) => {
@@ -557,15 +367,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await toolOutputTruncator?.["tool.execute.after"](input, output);
       await contextWindowMonitor?.["tool.execute.after"](input, output);
       await commentChecker?.["tool.execute.after"](input, output);
-      await directoryAgentsInjector?.["tool.execute.after"](input, output);
-      await directoryReadmeInjector?.["tool.execute.after"](input, output);
-      await rulesInjector?.["tool.execute.after"](input, output);
       await emptyTaskResponseDetector?.["tool.execute.after"](input, output);
-      await agentUsageReminder?.["tool.execute.after"](input, output);
       await interactiveBashSession?.["tool.execute.after"](input, output);
-await editErrorRecovery?.["tool.execute.after"](input, output);
-        await delegateTaskRetry?.["tool.execute.after"](input, output);
-        await sisyphusOrchestrator?.["tool.execute.after"]?.(input, output);
       await taskResumeInfo["tool.execute.after"](input, output);
     },
   };

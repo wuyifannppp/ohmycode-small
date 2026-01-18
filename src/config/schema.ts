@@ -56,38 +56,24 @@ export const OverridableAgentNameSchema = z.enum([
 export const AgentNameSchema = BuiltinAgentNameSchema
 
 export const HookNameSchema = z.enum([
-  "todo-continuation-enforcer",
   "context-window-monitor",
   "session-recovery",
   "session-notification",
   "comment-checker",
   "grep-output-truncator",
   "tool-output-truncator",
-  "directory-agents-injector",
-  "directory-readme-injector",
   "empty-task-response-detector",
   "think-mode",
   "anthropic-context-window-limit-recovery",
-  "rules-injector",
   "background-notification",
-  "auto-update-checker",
-  "startup-toast",
-  "keyword-detector",
-  "agent-usage-reminder",
   "non-interactive-env",
   "interactive-bash-session",
 
   "thinking-block-validator",
-  "ralph-loop",
 
   "compaction-context-injector",
   "claude-code-hooks",
   "auto-slash-command",
-  "edit-error-recovery",
-  "delegate-task-retry",
-  "prometheus-md-only",
-  "start-work",
-  "sisyphus-orchestrator",
 ])
 
 export const BuiltinCommandNameSchema = z.enum([
