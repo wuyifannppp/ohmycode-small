@@ -6961,9 +6961,9 @@ function detectCurrentConfig() {
 }
 // package.json
 var package_default = {
-  name: "oh-my-opencode",
-  version: "3.0.0-beta.8",
-  description: "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
+  name: "ohmycode-small",
+  version: "1.0.0",
+  description: "\u7CBE\u7B80\u7248 oh-my-opencode - \u79FB\u9664\u5360\u7528\u4E0A\u4E0B\u6587\u7684\u529F\u80FD\uFF0C\u4FDD\u7559\u6838\u5FC3\u80FD\u529B",
   main: "dist/index.js",
   types: "dist/index.d.ts",
   type: "module",
