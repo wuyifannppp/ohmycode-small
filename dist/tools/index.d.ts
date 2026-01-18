@@ -1,0 +1,16 @@
+import { lspManager } from "./lsp";
+export { lspManager };
+export { createSlashcommandTool, discoverCommandsSync } from "./slashcommand";
+export { sessionExists } from "./session-manager/storage";
+export { interactive_bash, startBackgroundCheck as startTmuxCheck } from "./interactive-bash";
+export { createSkillTool } from "./skill";
+export { getTmuxPath } from "./interactive-bash/utils";
+export { createSkillMcpTool } from "./skill-mcp";
+import type { PluginInput, ToolDefinition } from "@opencode-ai/plugin";
+import type { BackgroundManager } from "../features/background-agent";
+type OpencodeClient = PluginInput["client"];
+export { createCallOmoAgent } from "./call-omo-agent";
+export { createLookAt } from "./look-at";
+export { createDelegateTask, type DelegateTaskToolOptions, DEFAULT_CATEGORIES, CATEGORY_PROMPT_APPENDS } from "./delegate-task";
+export declare function createBackgroundTools(manager: BackgroundManager, client: OpencodeClient): Record<string, ToolDefinition>;
+export declare const builtinTools: Record<string, ToolDefinition>;

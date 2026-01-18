@@ -1,0 +1,10 @@
+import type { CheckDefinition } from "../types";
+export * from "./opencode";
+export * from "./plugin";
+export * from "./config";
+export * from "./auth";
+export * from "./dependencies";
+export * from "./gh";
+export * from "./lsp";
+export * from "./mcp";
+export declare function getAllCheckDefinitions(): CheckDefinition[];
